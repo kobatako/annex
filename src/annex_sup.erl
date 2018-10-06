@@ -21,7 +21,7 @@
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+  supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 %%====================================================================
 %% Supervisor callbacks
@@ -32,7 +32,8 @@ start_link() ->
 %% Before OTP 18 tuples must be used to specify a child. e.g.
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-    {ok, { {one_for_all, 0, 1}, []} }.
+  annex_proxy:start_link(5555, [{host, {127, 0, 0, 1}}, {port, 8010}]),
+  {ok, { {one_for_all, 0, 1}, []} }.
 
 %%====================================================================
 %% Internal functions
