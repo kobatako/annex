@@ -5,8 +5,7 @@
   {mod, { annex_app, []}},
   {applications,
    [kernel,
-    stdlib,
-    ranch
+    stdlib
    ]},
   {env,[]},
   {modules, []},
