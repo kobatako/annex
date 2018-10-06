@@ -16,8 +16,6 @@
 
 -spec start(_, _) -> {ok, pid()}.
 start(_StartType, _StartArgs) ->
-      {ok, _} = ranch:start_listener(tcp_echo,
-                 ranch_tcp, [{port, 5555}], echo_protocol, []),
     annex_sup:start_link().
 
 %%--------------------------------------------------------------------
