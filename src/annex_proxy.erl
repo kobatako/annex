@@ -42,14 +42,13 @@ init([Receive, Destination]) ->
 accept(ListenSocket, [{host, Host}, {port, Port}]=Destination) ->
   case gen_tcp:accept(ListenSocket) of
     {ok, Socket} ->
-      io:format("new accept ~p~n", [Socket]),
       {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
       inet:setopts(Socket, [{active, once}]),
       loop(Socket, Con);
     {error, closed} ->
       ok;
     {error, Reson} ->
-      io:format("fail accept ~p~n", [Reson])
+      false
   end,
   spawn(?MODULE, accept, [ListenSocket, Destination]).
 
@@ -66,45 +65,50 @@ accept(ListenSocket, [{host, Host}, {port, Port}]=Destination) ->
 loop(Front, Back) ->
   receive
     {tcp, Front, Message} ->
-      io:format("~p~n", [Message]),
       Parse = annex_http:parse(Message),
-      io:format("parse : ~p~n", [Parse]),
-      {ok, {Ip, _}} = inet:peername(Front),
-      Source = ip_to_binary(Ip),
-      io:format("source ip : ~p~n", [Source]),
-      io:format("x forwarded for  : ~p~n", [annex_http:add_x_forwarded_for(Parse, Source)]),
-
-      gen_tcp:send(Back, Message),
+      Send = annex_http:format(Parse, [
+        annex_http:format_x_forwarded_for(fetch_source_ip(Front))
+      ]),
+      gen_tcp:send(Back, Send),
       loop(Front, Back);
 
     {tcp_closed, Front} ->
-      io:format("tcp close Frontend~n"),
       gen_tcp:close(Front);
 
     {tcp_error, Front, Reson} ->
-      io:format("Handle error ~p on ~p~n", [Reson, Front]);
+      false;
 
     {tcp, Back, Message} ->
       gen_tcp:send(Front, Message),
       loop(Front, Back);
 
     {tcp_closed, Back} ->
-      io:format("tcp close Backend~n"),
       gen_tcp:close(Back);
 
     {tcp_error, Back, Reson} ->
-      io:format("Handle error ~p on ~p~n", [Reson, Back])
+      false
   end.
 
 %%--------------------------------------------------------------------
 %
-% loop
+% fetch_source_ip
 %
+-spec fetch_source_ip(port()) -> bitstring().
+fetch_source_ip(Socket) ->
+  {ok, {Ip, _}} = inet:peername(Socket),
+  ip_to_binary(Ip).
+
+%%--------------------------------------------------------------------
+%
+% ip_to_binary
+%
+-spec ip_to_binary(tuple()) -> bitstring().
 ip_to_binary({I1, I2, I3, I4}) ->
   Acc = list_to_binary(integer_to_list(I1)),
-  lists:foldl(fun(Oc, Ip) -> <<Ip/binary, ",", Oc/binary>> end, Acc,
+  lists:foldl(fun(Oc, Ip) -> <<Ip/binary, ".", Oc/binary>> end, Acc,
     [list_to_binary(integer_to_list(I)) || I <- [I2, I3, I4]]).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
+

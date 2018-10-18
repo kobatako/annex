@@ -9,8 +9,8 @@
 -export([parse_method/2]).
 -export([parse_uri/2]).
 -export([parse_header/2]).
--export([add_x_forwarded_for/2]).
--export([fetch_x_forwarded_for/1]).
+-export([format/2]).
+-export([format_x_forwarded_for/1]).
 
 -define(BLANK, $\s).
 
@@ -70,7 +70,7 @@ parse_uri(<<C, Res/binary>>, Uri) ->
   parse_uri(Res, <<Uri/binary, C>>).
 
 %%--------------------------------------------------------------------
-%
+% @doc parse http version
 % parse_version
 %
 -spec parse_version(bitstring()) -> {ok, http_version(), bitstring()}
@@ -85,7 +85,7 @@ parse_version(Res) ->
   {error, not_match_http_version, Res}.
 
 %%--------------------------------------------------------------------
-%
+% @doc parse http header
 % parse_header
 %
 -spec parse_header(bitstring(), list()) -> {ok, list()}.
@@ -97,35 +97,29 @@ parse_header(<<Res0/binary>>, Headers) ->
   {ok, Header, Res} = parse_header_attr(Res0, <<>>),
   parse_header(Res, [Header| Headers]).
 
+
 %%--------------------------------------------------------------------
 %
-% add x forwarded for
+% format x forwarded for
 %
--spec add_x_forwarded_for(map(), bitstring()) -> list().
-add_x_forwarded_for(#{header := Header}, Ip) when is_binary(Ip) ->
-  case fetch_x_forwarded_for(Header) of
-    not_found ->
-      [{<<?X_FORWARDED_FOR/binary>>, Ip}| Header];
-    Forwarded ->
-      [{<<?X_FORWARDED_FOR/binary>>, <<Forwarded/binary, ", ", Ip/binary>>}|
-        Header]
+-spec format_x_forwarded_for(bitstring())
+          -> fun((http_format()) -> http_format()).
+format_x_forwarded_for(Ip) ->
+  fun(Format) ->
+    add_x_forwarded_for(Format, Ip)
   end.
 
 %%--------------------------------------------------------------------
 %
-% fetch x forwarded for
+% format
 %
--spec fetch_x_forwarded_for(list()) -> bitstring() | atom().
-fetch_x_forwarded_for([]) ->
-  not_found;
-fetch_x_forwarded_for([{Attr, Value}| Tail]) ->
-  AttrLow = string:lowercase(Attr),
-  case string:lowercase(?X_FORWARDED_FOR) of
-    AttrLow ->
-      Value;
-    _ ->
-      fetch_x_forwarded_for(Tail)
-  end.
+-spec format(http_format(), list(fun((http_format()) -> http_format())))
+          -> bitstring().
+format(Parse, []) ->
+  decode(Parse);
+format(Parse, [F| Tail]) ->
+  Parse0 = F(Parse),
+  format(Parse0, Tail).
 
 %%====================================================================
 %% Internal functions
@@ -159,5 +153,68 @@ parse_header_value(<<$\r, $\n, Res/binary>>, Value) ->
   {ok, Value, Res};
 parse_header_value(<<C, Res/binary>>, Value) ->
   parse_header_value(Res, <<Value/binary, C>>).
+
+http_version(http_1_0) ->
+  <<"HTTP/1.0">>;
+http_version(http_1_1) ->
+  <<"HTTP/1.1">>;
+http_version(http_2_0) ->
+  <<"HTTP/2.0">>.
+
+%%--------------------------------------------------------------------
+%
+% decode
+%
+-spec decode(http_format()) -> bitstring().
+decode(#{method := Method, version := Ver, uri := Uri, header := Header}) ->
+  DecodeHeader = decode_header(Header, []),
+  HttpVer = http_version(Ver),
+  <<Method/bitstring, " ", Uri/binary, " ", HttpVer/binary,
+    "\r\n", DecodeHeader/binary, "\r\n\r\n">>.
+
+%%--------------------------------------------------------------------
+%
+% decode header
+%
+-spec decode_header(list(), list()) -> bitstring().
+decode_header([], [H| Header]) ->
+  lists:foldl(
+    fun(Head, List) -> <<List/binary, "\r\n", Head/binary>> end,
+    H, Header
+  );
+decode_header([{Attr, Value}| Tail], Header) ->
+  Head = <<Attr/binary, ": ", Value/binary>>,
+  decode_header(Tail, [Head| Header]).
+
+%%--------------------------------------------------------------------
+%
+% add x forwarded for
+%
+-spec add_x_forwarded_for(http_format(), bitstring()) -> http_format().
+add_x_forwarded_for(#{header := Header}=Format, Ip) when is_binary(Ip) ->
+  Head = case fetch_x_forwarded_for(Header) of
+    not_found ->
+      [{<<?X_FORWARDED_FOR/binary>>, Ip}| Header];
+    Forwarded ->
+      [{<<?X_FORWARDED_FOR/binary>>, <<Forwarded/binary, ", ", Ip/binary>>}|
+        Header]
+  end,
+  Format#{header := Head}.
+
+%%--------------------------------------------------------------------
+%
+% fetch x forwarded for
+%
+-spec fetch_x_forwarded_for(list()) -> bitstring() | atom().
+fetch_x_forwarded_for([]) ->
+  not_found;
+fetch_x_forwarded_for([{Attr, Value}| Tail]) ->
+  AttrLow = string:lowercase(Attr),
+  case string:lowercase(?X_FORWARDED_FOR) of
+    AttrLow ->
+      Value;
+    _ ->
+      fetch_x_forwarded_for(Tail)
+  end.
 
 
