@@ -32,8 +32,16 @@ start_link() ->
 %% Before OTP 18 tuples must be used to specify a child. e.g.
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-  annex_proxy:start_link(5555, [{host, {127, 0, 0, 1}}, {port, 8010}]),
-  {ok, { {one_for_all, 0, 1}, []} }.
+  ChildSpec = [
+    #{
+      id => annex_proxy_sup,
+      start => {annex_proxy_sup, start_link, [[]]},
+      restart => permanent,
+      type => supervisor,
+      modules => [annex_proxy_sup]
+    }
+  ],
+  {ok, { {one_for_all, 0, 1}, ChildSpec} }.
 
 %%====================================================================
 %% Internal functions

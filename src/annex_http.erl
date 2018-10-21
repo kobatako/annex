@@ -94,7 +94,7 @@ parse_header(<<$\r, $\n, $\r, $\n>>, Headers) ->
 parse_header(<<$\r, $\n, _/binary>>, Headers) ->
   {ok, Headers};
 parse_header(<<Res0/binary>>, Headers) ->
-  {ok, Header, Res} = parse_header_attr(Res0, <<>>),
+  {ok, Header, Res} = parse_header_field(Res0, <<>>),
   parse_header(Res, [Header| Headers]).
 
 
@@ -127,18 +127,18 @@ format(Parse, [F| Tail]) ->
 
 %%--------------------------------------------------------------------
 %
-% parse header attr
+% parse header field
 %
--spec parse_header_attr(bitstring(), bitstring()) ->
+-spec parse_header_field(bitstring(), bitstring()) ->
                                 {ok, {bitstring(), bitstring()}, bitstring()}
                               | {error, atom()}.
-parse_header_attr(<<>>, _) ->
-  {error, not_header_attr};
-parse_header_attr(<<$:, Res0/binary>>, Attr) ->
+parse_header_field(<<>>, _) ->
+  {error, not_header_field};
+parse_header_field(<<$:, Res0/binary>>, Field) ->
   {ok, Value, Res} = parse_header_value(Res0, <<>>),
-  {ok, {Attr, string:trim(Value)}, Res};
-parse_header_attr(<<C, Res/binary>>, Attr) ->
-  parse_header_attr(Res, <<Attr/binary, C>>).
+  {ok, {Field, string:trim(Value)}, Res};
+parse_header_field(<<C, Res/binary>>, Field) ->
+  parse_header_field(Res, <<Field/binary, C>>).
 
 %%--------------------------------------------------------------------
 %
@@ -182,8 +182,8 @@ decode_header([], [H| Header]) ->
     fun(Head, List) -> <<List/binary, "\r\n", Head/binary>> end,
     H, Header
   );
-decode_header([{Attr, Value}| Tail], Header) ->
-  Head = <<Attr/binary, ": ", Value/binary>>,
+decode_header([{Field, Value}| Tail], Header) ->
+  Head = <<Field/binary, ": ", Value/binary>>,
   decode_header(Tail, [Head| Header]).
 
 %%--------------------------------------------------------------------
@@ -208,10 +208,10 @@ add_x_forwarded_for(#{header := Header}=Format, Ip) when is_binary(Ip) ->
 -spec fetch_x_forwarded_for(list()) -> bitstring() | atom().
 fetch_x_forwarded_for([]) ->
   not_found;
-fetch_x_forwarded_for([{Attr, Value}| Tail]) ->
-  AttrLow = string:lowercase(Attr),
+fetch_x_forwarded_for([{Field, Value}| Tail]) ->
+  FieldLow = string:lowercase(Field),
   case string:lowercase(?X_FORWARDED_FOR) of
-    AttrLow ->
+    FieldLow ->
       Value;
     _ ->
       fetch_x_forwarded_for(Tail)
