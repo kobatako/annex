@@ -217,4 +217,3 @@ fetch_x_forwarded_for([{Field, Value}| Tail]) ->
       fetch_x_forwarded_for(Tail)
   end.
 
-

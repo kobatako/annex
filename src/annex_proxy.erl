@@ -4,11 +4,10 @@
 %%%-------------------------------------------------------------------
 -module(annex_proxy).
 
--export([start_link/2]).
--export([accept/2]).
-
 -export([init/1]).
 -export([ip_to_binary/1]).
+-export([start_link/2]).
+-export([accept/2]).
 
 %%====================================================================
 %% API
@@ -29,8 +28,8 @@ start_link(Receive, Destination) ->
 -spec init(list()) -> {ok, list()}.
 init([Receive, Destination]) ->
   {ok, ListenSocket} = ranch_tcp:listen([{port, Receive}]),
-  Pid = spawn_link(?MODULE, accept, [ListenSocket, Destination]),
-  {ok, Pid}.
+  Pid = spawn(?MODULE, accept, [ListenSocket, Destination]),
+  {ok, self()}.
 
 %%--------------------------------------------------------------------
 %
@@ -42,14 +41,23 @@ accept(ListenSocket, [{host, Host}, {port, Port}]=Destination) ->
     {ok, Socket} ->
       {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
       inet:setopts(Socket, [{active, once}]),
+      spawn(?MODULE, accept, [ListenSocket, Destination]),
       loop(Socket, Con);
     {error, closed} ->
       ok;
     {error, _} ->
       false
-  end,
-  % spawn_link(?MODULE, accept, [ListenSocket, Destination]),
-  accept(ListenSocket, Destination).
+  end.
+
+%%--------------------------------------------------------------------
+%
+% ip_to_binary
+%
+-spec ip_to_binary(tuple()) -> bitstring().
+ip_to_binary({I1, I2, I3, I4}) ->
+  Acc = list_to_binary(integer_to_list(I1)),
+  lists:foldl(fun(Oc, Ip) -> <<Ip/binary, ".", Oc/binary>> end, Acc,
+    [list_to_binary(integer_to_list(I)) || I <- [I2, I3, I4]]).
 
 
 %%====================================================================
@@ -98,18 +106,4 @@ loop(Front, Back) ->
 fetch_source_ip(Socket) ->
   {ok, {Ip, _}} = inet:peername(Socket),
   ip_to_binary(Ip).
-
-%%--------------------------------------------------------------------
-%
-% ip_to_binary
-%
--spec ip_to_binary(tuple()) -> bitstring().
-ip_to_binary({I1, I2, I3, I4}) ->
-  Acc = list_to_binary(integer_to_list(I1)),
-  lists:foldl(fun(Oc, Ip) -> <<Ip/binary, ".", Oc/binary>> end, Acc,
-    [list_to_binary(integer_to_list(I)) || I <- [I2, I3, I4]]).
-
-%%====================================================================
-%% Internal functions
-%%====================================================================
 
