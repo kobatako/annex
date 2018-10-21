@@ -28,11 +28,9 @@ start_link(Receive, Destination) ->
 %
 -spec init(list()) -> {ok, list()}.
 init([Receive, Destination]) ->
-  {ok, ListenSocket} = gen_tcp:listen(Receive,
-      [binary, {active, false}, {reuseaddr, true}, {backlog, 64}, inet]
-  ),
-  spawn_link(?MODULE, accept, [ListenSocket, Destination]),
-  {ok, []}.
+  {ok, ListenSocket} = ranch_tcp:listen([{port, Receive}]),
+  Pid = spawn_link(?MODULE, accept, [ListenSocket, Destination]),
+  {ok, Pid}.
 
 %%--------------------------------------------------------------------
 %
@@ -40,17 +38,18 @@ init([Receive, Destination]) ->
 %
 -spec accept(port(), list()) -> pid().
 accept(ListenSocket, [{host, Host}, {port, Port}]=Destination) ->
-  case gen_tcp:accept(ListenSocket) of
+  case ranch_tcp:accept(ListenSocket, infinity) of
     {ok, Socket} ->
       {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
       inet:setopts(Socket, [{active, once}]),
       loop(Socket, Con);
     {error, closed} ->
       ok;
-    {error, Reson} ->
+    {error, _} ->
       false
   end,
-  spawn(?MODULE, accept, [ListenSocket, Destination]).
+  % spawn_link(?MODULE, accept, [ListenSocket, Destination]),
+  accept(ListenSocket, Destination).
 
 
 %%====================================================================
@@ -73,9 +72,10 @@ loop(Front, Back) ->
       loop(Front, Back);
 
     {tcp_closed, Front} ->
-      gen_tcp:close(Front);
+      ranch_tcp:close(Front),
+      ranch_tcp:close(Back);
 
-    {tcp_error, Front, Reson} ->
+    {tcp_error, Front, _Reson} ->
       false;
 
     {tcp, Back, Message} ->
@@ -83,9 +83,10 @@ loop(Front, Back) ->
       loop(Front, Back);
 
     {tcp_closed, Back} ->
-      gen_tcp:close(Back);
+      ranch_tcp:close(Front),
+      ranch_tcp:close(Back);
 
-    {tcp_error, Back, Reson} ->
+    {tcp_error, Back, _Reson} ->
       false
   end.
 
