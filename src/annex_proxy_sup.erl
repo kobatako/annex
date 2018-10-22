@@ -69,6 +69,6 @@ child_spec(Pid, Proxy, Port, Hosts) ->
 example() ->
   Pid = make_ref(),
   ChildSpec = child_spec(Pid, annex_proxy, 5555,
-    [{host, {127, 0, 0, 1}}, {port, 8010}]),
+    [[{host, {127, 0, 0, 1}}, {port, 8010}]]),
   start_child(ChildSpec).
 
