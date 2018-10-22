@@ -7,7 +7,6 @@
 -export([init/1]).
 -export([ip_to_binary/1]).
 -export([start_link/2]).
--export([accept/2]).
 
 %%====================================================================
 %% API
@@ -53,24 +52,6 @@ init([Receive, Destination]) ->
 
 %%--------------------------------------------------------------------
 %
-% accept
-%
--spec accept(port(), list()) -> pid().
-accept(ListenSocket, [{host, Host}, {port, Port}]=Destination) ->
-  case ranch_tcp:accept(ListenSocket, infinity) of
-    {ok, Socket} ->
-      {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
-      inet:setopts(Socket, [{active, once}]),
-      spawn(?MODULE, accept, [ListenSocket, Destination]),
-      loop(Socket, Con);
-    {error, closed} ->
-      ok;
-    {error, _} ->
-      false
-  end.
-
-%%--------------------------------------------------------------------
-%
 % ip_to_binary
 %
 -spec ip_to_binary(tuple()) -> bitstring().
@@ -83,40 +64,6 @@ ip_to_binary({I1, I2, I3, I4}) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-%%--------------------------------------------------------------------
-%
-% loop
-%
--spec loop(port(), port()) -> any().
-loop(Front, Back) ->
-  receive
-    {tcp, Front, Message} ->
-      Parse = annex_http:parse(Message),
-      Send = annex_http:format(Parse, [
-        annex_http:format_x_forwarded_for(fetch_source_ip(Front))
-      ]),
-      gen_tcp:send(Back, Send),
-      loop(Front, Back);
-
-    {tcp_closed, Front} ->
-      ranch_tcp:close(Front),
-      ranch_tcp:close(Back);
-
-    {tcp_error, Front, _Reson} ->
-      false;
-
-    {tcp, Back, Message} ->
-      gen_tcp:send(Front, Message),
-      loop(Front, Back);
-
-    {tcp_closed, Back} ->
-      ranch_tcp:close(Front),
-      ranch_tcp:close(Back);
-
-    {tcp_error, Back, _Reson} ->
-      false
-  end.
 
 %%--------------------------------------------------------------------
 %
