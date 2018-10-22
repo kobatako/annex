@@ -19,7 +19,7 @@
 %
 -spec start_link(integer(), list()) -> {ok, pid()}.
 start_link(Receive, Destination) ->
-  init([Receive, Destination]).
+  supervisor:start_link({local, ?MODULE}, ?MODULE, [Receive, Destination]).
 
 %%--------------------------------------------------------------------
 %
@@ -27,9 +27,29 @@ start_link(Receive, Destination) ->
 %
 -spec init(list()) -> {ok, list()}.
 init([Receive, Destination]) ->
-  {ok, ListenSocket} = ranch_tcp:listen([{port, Receive}]),
-  Pid = spawn(?MODULE, accept, [ListenSocket, Destination]),
-  {ok, self()}.
+  % {ok, ListenSocket} = ranch_tcp:listen([{port, Receive}]),
+  % Pid = spawn(?MODULE, accept, [ListenSocket, Destination]),
+  % Control = make_ref(),
+  Control = annex_worker_control,
+  ChildSpec = [
+    #{
+      id => Control,
+      start => {annex_worker_control, start_link, [Destination, Control]},
+      restart => permanent,
+      shutdown => brutal_kill,
+      type => supervisor,
+      modules => [annex_worker_control]
+    },
+    #{
+      id => annex_worker_sup,
+      start => {annex_worker_sup, start_link, [Receive, Control]},
+      restart => permanent,
+      shutdown => brutal_kill,
+      type => supervisor,
+      modules => [annex_worker_sup]
+    }
+  ],
+  {ok, {{one_for_all, 6, 3600}, ChildSpec}}.
 
 %%--------------------------------------------------------------------
 %
