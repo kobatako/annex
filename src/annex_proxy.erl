@@ -26,9 +26,6 @@ start_link(Receive, Destination) ->
 %
 -spec init(list()) -> {ok, list()}.
 init([Receive, Destination]) ->
-  % {ok, ListenSocket} = ranch_tcp:listen([{port, Receive}]),
-  % Pid = spawn(?MODULE, accept, [ListenSocket, Destination]),
-  % Control = make_ref(),
   Control = annex_worker_control,
   ChildSpec = [
     #{
