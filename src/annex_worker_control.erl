@@ -1,7 +1,7 @@
 -module(annex_worker_control).
 -behavior(gen_server).
 
--export([start_link/2]).
+-export([start_link/3]).
 -export([init/1]).
 -export([handle_info/2]).
 -export([handle_cast/2]).
@@ -10,15 +10,19 @@
 -export([fetch_destination/1]).
 -export([make_worker/2]).
 
+-define(DEFAULT_OPT, #{lb=>round_robin}).
+
 -record(worker_control, {
-  destination
+  destination,
+  opts
 }).
 
-start_link(Destination, Name) ->
-  gen_server:start_link({local, Name}, ?MODULE, Destination, []).
+start_link(Destination, Name, Opts) ->
+  gen_server:start_link({local, Name}, ?MODULE, [Destination, Opts], []).
 
-init(Destination) ->
-  {ok, #worker_control{destination=Destination}}.
+init([Destination, Opts0]) ->
+  Opts = maps:merge(?DEFAULT_OPT, Opts0),
+  {ok, #worker_control{destination=Destination,opts=Opts}}.
 
 fetch_destination(Pid) ->
   gen_server:call(Pid, {fetch_dest}).
@@ -41,9 +45,9 @@ terminate(_Message, _State) ->
   ok.
 
 handle_call({fetch_dest}, _From, State) ->
-  Dest = fetch_dest(State),
-  {reply, Dest, State}.
+  {Next, Dest} = fetch_dest(State),
+  {reply, Next, State#worker_control{destination=Dest}}.
 
-fetch_dest(#worker_control{destination=[Dest|_]}) ->
-  Dest.
+fetch_dest(#worker_control{destination=Dest,opts=#{lb:=Lb}}) ->
+  Lb:next_host(Dest).
 
