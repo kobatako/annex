@@ -6,7 +6,7 @@
 
 -export([init/1]).
 -export([ip_to_binary/1]).
--export([start_link/2]).
+-export([start_link/3]).
 
 %%====================================================================
 %% API
@@ -16,21 +16,21 @@
 %
 % start_link
 %
--spec start_link(integer(), list()) -> {ok, pid()}.
-start_link(Receive, Destination) ->
-  supervisor:start_link({local, ?MODULE}, ?MODULE, [Receive, Destination]).
+-spec start_link(integer(), list(), map()) -> {ok, pid()}.
+start_link(Receive, Destination, Opts) ->
+  supervisor:start_link({local, ?MODULE}, ?MODULE, [Receive, Destination, Opts]).
 
 %%--------------------------------------------------------------------
 %
 % init
 %
 -spec init(list()) -> {ok, list()}.
-init([Receive, Destination]) ->
+init([Receive, Destination, Opts]) ->
   Control = annex_worker_control,
   ChildSpec = [
     #{
       id => Control,
-      start => {annex_worker_control, start_link, [Destination, Control]},
+      start => {annex_worker_control, start_link, [Destination, Control, Opts]},
       restart => permanent,
       shutdown => brutal_kill,
       type => supervisor,
