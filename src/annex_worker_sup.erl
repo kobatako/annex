@@ -2,7 +2,9 @@
 
 -export([start_link/2]).
 -export([init/1]).
+-export([start_worker/2]).
 
+-spec start_link(integer(), term()) -> {ok, pid()}.
 start_link(Receive, Control) ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, [Receive, Control]).
 
@@ -14,6 +16,7 @@ init([Receive, Control]) ->
 start_workers(Listen, Control) ->
   [start_worker(Listen, Control) || _ <- lists:seq(1, 5)].
 
+-spec start_worker(term(), term()) -> {ok, pid()}.
 start_worker(Listen, Control) ->
   Pid = make_ref(),
   ChildSpec = #{
@@ -24,6 +27,5 @@ start_worker(Listen, Control) ->
     type => worker,
     modules => [annex_worker]
   },
-  io:format("child spec ~p~n", [ChildSpec]),
   supervisor:start_child(?MODULE, ChildSpec).
 

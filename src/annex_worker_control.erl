@@ -8,6 +8,7 @@
 -export([handle_call/3]).
 -export([terminate/2]).
 -export([fetch_destination/1]).
+-export([make_worker/2]).
 
 -record(worker_control, {
   destination
@@ -22,9 +23,16 @@ init(Destination) ->
 fetch_destination(Pid) ->
   gen_server:call(Pid, {fetch_dest}).
 
+make_worker(Pid, Listen) ->
+  gen_server:cast(Pid, {make_worker, Listen, Pid}).
+
 
 handle_info(_, State) ->
   {noreply, State}.
+
+handle_cast({make_worker, Listen, Control}, State) ->
+  annex_worker_sup:start_worker(Listen, Control),
+  {noreply, State};
 
 handle_cast(_, State) ->
   {noreply, State}.

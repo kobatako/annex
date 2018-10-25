@@ -17,27 +17,24 @@
 }).
 
 start_link(Listen, Control, Pid) ->
-  io:format("work start link ~p~n", [Listen]),
   gen_server:start_link({global, Pid}, ?MODULE, [Listen, Control, Pid], []).
 
 init([Listen, Control, Pid]) ->
-  io:format("work listen ~p~n", [Listen]),
   gen_server:cast(self(), accept),
   {ok, #worker{listen=Listen,control=Control,pid=Pid}}.
 
 handle_cast(accept, #worker{listen=Listen, control=Control}=State) ->
   case ranch_tcp:accept(Listen, infinity) of
     {ok, Socket} ->
-      io:format("accept Socket ~p, controller ~p~n", [Socket, Control]),
       ranch_tcp:controlling_process(Socket, self()),
       inet:setopts(Socket, [{active, once}]),
-      [{host, Host}, {port, Port}] =
+      #{host := Host, port := Port} =
           annex_worker_control:fetch_destination(Control),
 
+      annex_worker_control:make_worker(Control, Listen),
       {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
 
       {noreply, #worker{front=Socket,back=Con}};
-
     {error, closed} ->
       {stop, closed, State};
     {error, Reson} ->
@@ -48,7 +45,6 @@ handle_call(_, _From, State) ->
   {reply, not_found, State}.
 
 terminate(normal, _State) ->
-  io:format("terminate~n"),
   ok.
 
 handle_info({tcp, Socket, Message}, #worker{front=Socket,back=Back}=State) ->
