@@ -28,13 +28,9 @@ handle_cast(accept, #worker{listen=Listen, control=Control}=State) ->
     {ok, Socket} ->
       ranch_tcp:controlling_process(Socket, self()),
       inet:setopts(Socket, [{active, once}]),
-      #{host := Host, port := Port} =
-          annex_worker_control:fetch_destination(Control),
 
       annex_worker_control:make_worker(Control, Listen),
-      {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
-
-      {noreply, #worker{front=Socket,back=Con}};
+      {noreply, #worker{front=Socket,control=Control,listen=Listen}};
     {error, closed} ->
       {stop, closed, State};
     {error, Reson} ->
@@ -47,9 +43,15 @@ handle_call(_, _From, State) ->
 terminate(normal, _State) ->
   ok.
 
-handle_info({tcp, Socket, Message}, #worker{front=Socket,back=Back}=State) ->
-  gen_tcp:send(Back, Message),
-  {noreply, State};
+handle_info({tcp, Socket, Message}, #worker{front=Socket,control=Control}=State) ->
+  Parse = annex_http:parse(Message),
+  io:format("parse ~p~n", [Parse]),
+  #{host := Host, port := Port} =
+      annex_worker_control:fetch_destination(Control),
+  {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
+
+  gen_tcp:send(Con, Message),
+  {noreply, State#worker{back=Con}};
 handle_info({tcp_closed, Socket}, #worker{front=Socket,back=Back}=State) ->
   ranch_tcp:close(Back),
   {stop, normal, State};

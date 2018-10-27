@@ -28,6 +28,10 @@
                       | http_1_1
                       | http_2_0.
 
+
+-type http_uri() :: #{path => bitstring(),
+                      query => bitstring()}.
+
 -type http_format() :: #{method => bitstring(),
                           uri => bitstring(),
                           version => http_version(),
@@ -44,7 +48,7 @@
 -spec parse(bitstring()) -> http_format().
 parse(Buffer) ->
   {ok, Method, Res0} = parse_method(Buffer, <<>>),
-  {ok, Uri, Res1} = parse_uri(Res0, <<>>),
+  {ok, Uri, Res1} = parse_uri(Res0, #{path => <<>>, query => <<>>}),
   {ok, Ver, Res2} = parse_version(Res1),
   {ok, Header} = parse_header(Res2, []),
   #{method => Method, uri => Uri, version => Ver, header => Header}.
@@ -66,8 +70,18 @@ parse_method(<<C, Res/binary>>, Method) ->
 -spec parse_uri(bitstring(), bitstring()) -> {ok, bitstring(), bitstring()}.
 parse_uri(<<?BLANK, Res/binary>>, Uri) ->
   {ok, Uri, Res};
+parse_uri(<<"?", Res/binary>>, Uri) ->
+  parse_query(Res, Uri);
 parse_uri(<<C, Res/binary>>, Uri) ->
-  parse_uri(Res, <<Uri/binary, C>>).
+  #{path:=Path} = Uri,
+  parse_uri(Res, Uri#{path:=<<Path/binary, C>>}).
+
+parse_query(<<?BLANK, Res/binary>>, Uri) ->
+  {ok, Uri, Res};
+parse_query(<<C, Res/binary>>, Uri) ->
+  #{query:=Query} = Uri,
+  parse_query(Res, Uri#{query:=<<Query/binary, C>>}).
+
 
 %%--------------------------------------------------------------------
 % @doc parse http version
