@@ -48,8 +48,8 @@ terminate(normal, _State) ->
   ok.
 
 handle_info({tcp, Socket, Message}, #worker{front=Socket,control=Control}=State) ->
-  #{uri := #{path := Path}} = annex_http:parse(Message),
-  case annex_worker_control:fetch_destination(Control, Path) of
+  #{uri := Url} = annex_http:parse(Message),
+  case annex_worker_control:fetch_destination(Control, Url) of
     #{host := Host, port := Port} ->
       {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
       gen_tcp:send(Con, Message),
