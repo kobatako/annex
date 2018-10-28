@@ -122,13 +122,13 @@ merge_url(Dest) ->
 %
 % fetch_next_host
 %
--spec fetch_next_host(#worker_control{}, bitstring()) ->
+-spec fetch_next_host(#worker_control{}, term()) ->
                                           {host(), #worker_control{}} |
                                           {not_found_host, #worker_control{}}.
-fetch_next_host(#worker_control{destination=Dests}=State, Url) ->
-  case fetch_http_url(Dests, Url) of
+fetch_next_host(#worker_control{destination=Dests}=State, #{path := Path}=Url) ->
+  case fetch_http_url(Dests, Path) of
     {#{option := #{lb := Lb}, hosts := Hosts0}=Dest, Head, Tail} ->
-      {Host, Hosts} = Lb:next_host(Hosts0),
+      {Host, Hosts} = Lb:next_host(Hosts0, #{url => Url}),
       {Host, Head ++ [Dest#{hosts:=Hosts}] ++ Tail};
     _ ->
       {not_found_host, State}

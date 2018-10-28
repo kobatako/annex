@@ -75,7 +75,8 @@ example() ->
   ChildSpec = child_spec(Pid, annex_proxy, 5555,
     [
       #{
-        hosts => Hosts
+        hosts => Hosts,
+        option => #{lb => url_hash}
       },
       #{
         url => <<"/hello">>,
