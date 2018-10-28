@@ -55,11 +55,11 @@ start_child(ChildSpec) ->
 %
 % child_spec
 %
--spec child_spec(term(), term(), integer(), list(), map()) -> child_spec().
-child_spec(Pid, Proxy, Port, Hosts, Opts) ->
+-spec child_spec(term(), term(), integer(), list()) -> child_spec().
+child_spec(Pid, Proxy, Port, Hosts) ->
   #{
     id => Pid,
-    start => {Proxy, start_link, [Port, Hosts, Opts]},
+    start => {Proxy, start_link, [Port, Hosts]},
     restart => permanent,
     shutdown => brutal_kill,
     type => supervisor,
@@ -74,9 +74,15 @@ example() ->
   Pid = make_ref(),
   ChildSpec = child_spec(Pid, annex_proxy, 5555,
     [
-      #{host => {127, 0, 0, 1}, port => 8010},
-      #{host => {127, 0, 0, 1}, port => 8020}
-    ],
-    #{}),
+      #{
+        hosts => Hosts
+      },
+      #{
+        url => <<"/hello">>,
+        hosts => [
+          #{host => {127, 0, 0, 1}, port => 8020}
+        ]
+      }
+    ]),
   start_child(ChildSpec).
 

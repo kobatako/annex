@@ -16,6 +16,10 @@
   back
 }).
 
+%%====================================================================
+%% API functions
+%%====================================================================
+
 start_link(Listen, Control, Pid) ->
   gen_server:start_link({global, Pid}, ?MODULE, [Listen, Control, Pid], []).
 
@@ -44,14 +48,15 @@ terminate(normal, _State) ->
   ok.
 
 handle_info({tcp, Socket, Message}, #worker{front=Socket,control=Control}=State) ->
-  Parse = annex_http:parse(Message),
-  io:format("parse ~p~n", [Parse]),
-  #{host := Host, port := Port} =
-      annex_worker_control:fetch_destination(Control),
-  {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
-
-  gen_tcp:send(Con, Message),
-  {noreply, State#worker{back=Con}};
+  #{uri := #{path := Path}} = annex_http:parse(Message),
+  case annex_worker_control:fetch_destination(Control, Path) of
+    #{host := Host, port := Port} ->
+      {ok, Con} = gen_tcp:connect(Host, Port, [binary, {packet, 0}]),
+      gen_tcp:send(Con, Message),
+      {noreply, State#worker{back=Con}};
+    _ ->
+      {stop, normal, not_found_next_host}
+  end;
 handle_info({tcp_closed, Socket}, #worker{front=Socket,back=Back}=State) ->
   ranch_tcp:close(Back),
   {stop, normal, State};
